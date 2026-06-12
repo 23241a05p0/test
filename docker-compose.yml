@@ -1,0 +1,31 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:637"        # exposed so you can poke at it with redis-cli if you want
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  upstream:
+    build: ./upstream
+    environment:
+      PORT: "8000"
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "8080:8080"        # the only port clients (and k6) talk to
+    environment:
+      PORT: "8080"
+      REDIS_URL: "redis://redis:6379"
+      UPSTREAM_URL: "http://upstream:8000"
+      RATE: "${RATE:-100}"          # tokens/sec per client
+      BURST: "${BURST:-200}"        # max burst per client
+    depends_on:
+      redis:
+        condition: service_healthy
+      upstream:
+        condition: service_started
